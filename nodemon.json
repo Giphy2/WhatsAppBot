@@ -1,0 +1,5 @@
+{
+  "ignore": ["auth/*", "node_modules/*", ".env"],
+  "ext": "js",
+  "exec": "node index.js"
+}
