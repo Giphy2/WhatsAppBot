@@ -14,6 +14,8 @@ const fs = require("fs")
 const loadCommands = require("./handlers/commandHandler")
 const settings = require("../config/settings")
 const { checkMessage } = require("./handlers/moderation")
+const { handleDMMessage } = require("./handlers/dmHandler")
+const { handleGroupMessage, handleGroupUpdate } = require("./handlers/groupHandler")
 
 async function startConnection() {
   console.log(chalk.blue("⏳ Loading WhatsApp connection..."))
@@ -79,7 +81,6 @@ async function startConnection() {
         continue
       }
       
-      
       // Run moderation first
       const blocked = await checkMessage(sock, msg)
       if (blocked) {
@@ -90,36 +91,18 @@ async function startConnection() {
       const sender = msg.key.remoteJid
       const isGroup = sender.endsWith("@g.us")
 
-      const text =
-        msg.message.conversation ||
-        msg.message.extendedTextMessage?.text ||
-        ""
-
-      console.log(`[MESSAGE] From: ${sender} | Text: "${text}"`)
-
-      // Check if message starts with prefix
-      if (!text.startsWith(settings.prefix)) continue
-
-      const args = text.slice(settings.prefix.length).trim().split(/ +/)
-      const commandName = args.shift().toLowerCase()
-
-      if (!commands.has(commandName)) continue
-
-      const command = commands.get(commandName)
-
-      try {
-        // Permission checks - only for owner commands
-        if (command.category === "owner" && msg.key.participant !== settings.owner) {
-          return await sock.sendMessage(sender, { text: "❌ Owner-only command" })
-        }
-
-        console.log(`[COMMAND] User: ${sender} | Command: ${commandName} | Args: ${args.join(" ")}`)
-        await command.execute(sock, msg, args)
-      } catch (err) {
-        console.error(err)
-        await sock.sendMessage(sender, { text: "⚠ Error executing command" })
+      // Route to appropriate handler
+      if (isGroup) {
+        await handleGroupMessage(sock, msg)
+      } else {
+        await handleDMMessage(sock, msg)
       }
     }
+  })
+
+  // Handle group updates (member added/removed)
+  sock.ev.on("group-participants.update", (update) => {
+    handleGroupUpdate(sock, update)
   })
 
   return sock
