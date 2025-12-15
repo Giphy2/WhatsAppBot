@@ -41,17 +41,27 @@ async function handleGroupMessage(sock, msg) {
 }
 
 async function handleGroupUpdate(sock, update) {
-    const { participants, action, id } = update
+    const { participants, action, id } = update;
 
-    if (action === "add") {
-        for (const user of participants) {
-            await sock.sendMessage(id, { text: `👋 Welcome @${user.split("@")[0]} to the group!`, mentions: [user] })
-        }
-    } else if (action === "remove") {
-        for (const user of participants) {
-            await sock.sendMessage(id, { text: `😢 Goodbye @${user.split("@")[0]}!`, mentions: [user] })
+    for (const participant of participants) {
+        // Baileys sends participant as an object; extract the ID
+        const userId = typeof participant === "string" ? participant : participant.id;
+
+        if (!userId) continue; // safety check
+
+        if (action === "add") {
+            await sock.sendMessage(id, {
+                text: `👋 Welcome @${userId.split("@")[0]} to the group!`,
+                mentions: [userId]
+            });
+        } else if (action === "remove") {
+            await sock.sendMessage(id, {
+                text: `😢 Goodbye @${userId.split("@")[0]}!`,
+                mentions: [userId]
+            });
         }
     }
 }
+
 
 module.exports = { handleGroupMessage, handleGroupUpdate }
