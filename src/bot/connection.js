@@ -17,7 +17,7 @@ const { checkMessage } = require("./handlers/moderation")
 const { handleDMMessage } = require("./handlers/dmHandler")
 const { handleGroupMessage, handleGroupUpdate } = require("./handlers/groupHandler")
 
-async function startConnection() {
+async function startConnection(onQR) {
   console.log(chalk.blue("⏳ Loading WhatsApp connection..."))
 
   // Load or create auth state
@@ -43,6 +43,7 @@ async function startConnection() {
     if (qr) {
       console.log(chalk.yellow("\n📱 Scan this QR to connect:\n"))
       qrcode.generate(qr, { small: true })
+      if (onQR) onQR(qr)
     }
 
     if (connection === "open") {
@@ -56,7 +57,7 @@ async function startConnection() {
 
       if (reason !== DisconnectReason.loggedOut) {
         console.log(chalk.yellow("🔄 Reconnecting..."))
-        startConnection()
+        startConnection(onQR)
       } else {
         console.log(chalk.red("❌ Logged out. Please delete the auth folder and restart."))
       }
@@ -72,15 +73,15 @@ async function startConnection() {
 
     for (const msg of messages) {
       console.log(`[DEBUG] Raw message received - fromMe: ${msg.key.fromMe}, hasMessage: ${!!msg.message}`)
-      
+
       if (!msg.message) continue
-      
+
       // Skip messages from the bot itself
       if (msg.key.fromMe) {
         console.log(`[DEBUG] Skipping message from self`)
         continue
       }
-      
+
       // Run moderation first
       const blocked = await checkMessage(sock, msg)
       if (blocked) {
