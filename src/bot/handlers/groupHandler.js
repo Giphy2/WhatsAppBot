@@ -1,5 +1,7 @@
 const loadCommands = require("./commandHandler")
 const settings = require("../../config/settings")
+const { checkLinkApproval } = require("./linkFilter")
+const { addWarning, shouldKick } = require("./warnings")
 
 // Load commands once
 const commands = loadCommands()
@@ -7,12 +9,46 @@ const commands = loadCommands()
 async function handleGroupMessage(sock, msg) {
     try {
         const sender = msg.key.remoteJid
+        const userId = msg.key.participant
         const text =
             msg.message.conversation ||
             msg.message.extendedTextMessage?.text ||
             ""
 
         console.log(`[GROUP] From: ${sender} | Text: "${text}"`)
+
+        // Check for unapproved links (before command processing)
+        const linkCheck = await checkLinkApproval(sender, text)
+        if (linkCheck.hasUnapprovedLinks && linkCheck.links.length > 0) {
+            // Add warning for unapproved link
+            const newWarnings = await addWarning(
+                sender,
+                userId,
+                `Shared unapproved link: ${linkCheck.links[0]}`
+            )
+
+            // Build link list message
+            const linksText = linkCheck.links.map((l) => `  • ${l}`).join("\n")
+            let response = `⛔ **Unapproved Link Alert**\n\n`
+            response += `❌ You shared a link that's not on the whitelist.\n\n`
+            response += `🔗 Link(s) shared:\n${linksText}\n\n`
+            response += `📋 Warnings: ${newWarnings}/3\n`
+
+            if (newWarnings >= 3) {
+                // Auto-kick the member
+                await sock.groupParticipantsUpdate(sender, [userId], "remove")
+                response = `⛔ **Auto-Kicked for Unapproved Links**\n\nYou have been removed from the group for sharing unapproved links.`
+                await sock.sendMessage(sender, { text: response, mentions: [userId] }, { quoted: msg })
+                return
+            } else {
+                const warningsLeft = 3 - newWarnings
+                response += `⏳ **${warningsLeft} warning(s) left before removal**\n\n`
+                response += `💡 Use !allowedlinks to see approved links`
+            }
+
+            await sock.sendMessage(sender, { text: response, mentions: [userId] }, { quoted: msg })
+            return // Don't process message further if link was unapproved
+        }
 
         // Check if message starts with prefix
         if (!text.startsWith(settings.prefix)) return
