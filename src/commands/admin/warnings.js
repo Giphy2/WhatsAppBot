@@ -88,13 +88,13 @@ module.exports = {
         )
         .join("\n");
 
-      const mentions = allWarnings.map((w) => w.user_id);
+      const warnedUserIds = allWarnings.map((w) => w.user_id);
 
       await sock.sendMessage(
         groupJid,
         {
           text: warningsList,
-          mentions: mentions,
+          mentions: warnedUserIds,
         },
         { quoted: msg }
       );
